@@ -4,9 +4,15 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TaskManagement.Data;
 using TaskManagement.Services;
-
+using TaskManagement.Middleware;
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReact", policy =>
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -42,6 +48,9 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseCors("AllowReact");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
