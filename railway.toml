@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["dotnet-sdk_10"]
+
+[deploy]
+startCommand = "dotnet TaskManagement.dll"
