@@ -7,12 +7,25 @@ using TaskManagement.Data;
 using TaskManagement.Services;
 using TaskManagement.Middleware;
 var builder = WebApplication.CreateBuilder(args);
+// builder.Services.AddCors(options =>
+// {
+//     options.AddPolicy("AllowReact", policy =>
+//         policy.WithOrigins("http://localhost:5173")
+
+//               .AllowAnyHeader()
+//               .AllowAnyMethod());
+// });
+
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+        policy.WithOrigins(
+            "http://localhost:5173",
+            "https://learning-net-task-management.vercel.app"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod());
 });
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
