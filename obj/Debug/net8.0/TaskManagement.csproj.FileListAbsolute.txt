@@ -119,3 +119,11 @@
 /Users/mac/Desktop/TaskManagement/obj/Debug/net8.0/TaskManagement.pdb
 /Users/mac/Desktop/TaskManagement/obj/Debug/net8.0/TaskManagement.genruntimeconfig.cache
 /Users/mac/Desktop/TaskManagement/obj/Debug/net8.0/ref/TaskManagement.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/package-lock.json
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/package.json
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/Google.Apis.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/Google.Apis.Auth.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/Google.Apis.Core.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/Newtonsoft.Json.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/System.Management.dll
+/Users/mac/Desktop/TaskManagement/bin/Debug/net8.0/runtimes/win/lib/net7.0/System.Management.dll

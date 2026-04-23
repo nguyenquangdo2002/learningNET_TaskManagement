@@ -1,3 +1,4 @@
+using Google.Apis.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -13,6 +14,7 @@ public interface IAuthService
 {
     Task<AuthResponseDto?> RegisterAsync(RegisterDto dto);
     Task<AuthResponseDto?> LoginAsync(LoginDto dto);
+    Task<AuthResponseDto?> GoogleLoginAsync(string IdToken);
 }
 
 public class AuthService : IAuthService
@@ -25,7 +27,39 @@ public class AuthService : IAuthService
         _context = context;
         _config = config;
     }
+    public async Task<AuthResponseDto?> GoogleLoginAsync(string accessToken)
+    {
+        try
+        {
+            // Verify token bằng cách gọi Google API
+            using var http = new HttpClient();
+            var res = await http.GetAsync(
+                $"https://www.googleapis.com/oauth2/v3/userinfo?access_token={accessToken}");
 
+            if (!res.IsSuccessStatusCode) return null;
+
+            var json = await res.Content.ReadAsStringAsync();
+            var payload = System.Text.Json.JsonSerializer.Deserialize<GoogleUserInfo>(json);
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Username == payload!.Email);
+
+            if (user == null)
+            {
+                user = new User
+                {
+                    Username = payload!.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                    Role = Role.User
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+            }
+
+            return GenerateResponse(user);
+        }
+        catch { return null; }
+    }
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
     {
         if (await _context.Users.AnyAsync(u => u.Username == dto.Username))

@@ -34,4 +34,12 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
+    [HttpPost("google")]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleUserInfo dto)
+    {
+        var result = await _authService.GoogleLoginAsync(dto.Email);
+        if (result == null)
+            return Unauthorized(new { message = "Invalid Google Email" });
+        return Ok(result);
+    }
 }
