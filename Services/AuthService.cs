@@ -27,28 +27,26 @@ public class AuthService : IAuthService
         _context = context;
         _config = config;
     }
-    public async Task<AuthResponseDto?> GoogleLoginAsync(string accessToken)
+    public async Task<AuthResponseDto?> GoogleLoginAsync(string idToken)
     {
         try
         {
-            // Verify token bằng cách gọi Google API
-            using var http = new HttpClient();
-            var res = await http.GetAsync(
-                $"https://www.googleapis.com/oauth2/v3/userinfo?access_token={accessToken}");
+            // Verify ID Token bằng Google.Apis.Auth (verify chữ ký JWT offline)
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _config["Google:ClientId"] }
+            };
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
 
-            if (!res.IsSuccessStatusCode) return null;
-
-            var json = await res.Content.ReadAsStringAsync();
-            var payload = System.Text.Json.JsonSerializer.Deserialize<GoogleUserInfo>(json);
-
+            // Tìm hoặc tạo user dựa trên email đã xác thực từ Google
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == payload!.Email);
+                .FirstOrDefaultAsync(u => u.Username == payload.Email);
 
             if (user == null)
             {
                 user = new User
                 {
-                    Username = payload!.Email,
+                    Username = payload.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
                     Role = Role.User
                 };
@@ -58,7 +56,16 @@ public class AuthService : IAuthService
 
             return GenerateResponse(user);
         }
-        catch { return null; }
+        catch (InvalidJwtException ex)
+        {
+            Console.WriteLine($"Google Login - Invalid JWT: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Google Login Error: {ex.Message}");
+            return null;
+        }
     }
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
     {

@@ -21,9 +21,8 @@ public class AuthResponseDto
 
 public class GoogleAuthDto
 {
-
+    [System.Text.Json.Serialization.JsonPropertyName("idToken")]
     public string IdToken { get; set; } = string.Empty;
-
 }
 
 public class GoogleUserInfo
