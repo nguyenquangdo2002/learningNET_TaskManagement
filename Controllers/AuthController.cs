@@ -34,6 +34,7 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
+
     [HttpPost("google")]
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleAuthDto dto)
     {
@@ -41,5 +42,31 @@ public class AuthController : ControllerBase
         if (result == null)
             return Unauthorized(new { message = "Google login failed" });
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Gửi refresh token → nhận cặp access + refresh token mới (Token Rotation)
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto dto)
+    {
+        var result = await _authService.RefreshTokenAsync(dto.RefreshToken);
+        if (result == null)
+            return Unauthorized(new { message = "Invalid or expired refresh token" });
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Revoke refresh token khi logout — vô hiệu hóa token
+    /// </summary>
+    [HttpPost("revoke")]
+    public async Task<IActionResult> RevokeToken([FromBody] RefreshTokenRequestDto dto)
+    {
+        var result = await _authService.RevokeTokenAsync(dto.RefreshToken);
+        if (!result)
+            return BadRequest(new { message = "Token not found or already revoked" });
+
+        return Ok(new { message = "Token revoked successfully" });
     }
 }

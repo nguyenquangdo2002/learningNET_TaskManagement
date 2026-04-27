@@ -24,7 +24,8 @@ builder.Services.AddCors(options =>
             origin.Contains("vercel.app") ||
             origin.Contains("localhost"))
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -43,11 +44,31 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false,
             ValidateAudience = false
         };
+
+        // Cấu hình để SignalR có thể đọc token từ query string "access_token"
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && 
+                    (path.StartsWithSegments("/hub/notifications") || path.StartsWithSegments("/hub/chat")))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 
 // Services
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -69,12 +90,30 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TaskManagement.Hubs.NotificationHub>("/hub/notifications");
+app.MapHub<TaskManagement.Hubs.ChatHub>("/hub/chat");
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-}
 
+    // Đảm bảo DB tồn tại
+    db.Database.EnsureCreated();
+
+    // Fix migration history: nếu DB đã tạo bằng EnsureCreated() trước đó,
+    // đánh dấu InitialCreate đã apply để Migrate() chỉ chạy migration mới
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260421004115_InitialCreate', '8.0.11')
+            ON CONFLICT (""MigrationId"") DO NOTHING;
+        ");
+    }
+    catch { /* __EFMigrationsHistory chưa tồn tại → bỏ qua, Migrate() sẽ tạo */ }
+
+    // Apply tất cả migration pending
+    db.Database.Migrate();
+}
 
 app.Run();

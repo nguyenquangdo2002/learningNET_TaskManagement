@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using TaskManagement.Data;
 using TaskManagement.DTOs;
@@ -15,6 +16,8 @@ public interface IAuthService
     Task<AuthResponseDto?> RegisterAsync(RegisterDto dto);
     Task<AuthResponseDto?> LoginAsync(LoginDto dto);
     Task<AuthResponseDto?> GoogleLoginAsync(string IdToken);
+    Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken);
+    Task<bool> RevokeTokenAsync(string refreshToken);
 }
 
 public class AuthService : IAuthService
@@ -54,7 +57,7 @@ public class AuthService : IAuthService
                 await _context.SaveChangesAsync();
             }
 
-            return GenerateResponse(user);
+            return await GenerateResponseAsync(user);
         }
         catch (InvalidJwtException ex)
         {
@@ -82,7 +85,7 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        return GenerateResponse(user);
+        return await GenerateResponseAsync(user);
     }
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
@@ -93,11 +96,52 @@ public class AuthService : IAuthService
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return null;
 
-        return GenerateResponse(user);
+        return await GenerateResponseAsync(user);
     }
 
-    private AuthResponseDto GenerateResponse(User user)
+    /// <summary>
+    /// Token Rotation: validate refresh token → revoke cũ → sinh cặp token mới
+    /// </summary>
+    public async Task<AuthResponseDto?> RefreshTokenAsync(string refreshToken)
     {
+        var storedToken = await _context.RefreshTokens
+            .Include(rt => rt.User)
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+
+        // Kiểm tra: token không tồn tại, đã bị revoke, hoặc hết hạn
+        if (storedToken == null || storedToken.IsRevoked || storedToken.ExpiresAt < DateTime.UtcNow)
+            return null;
+
+        // Revoke token cũ (Token Rotation — chống replay attack)
+        storedToken.IsRevoked = true;
+        await _context.SaveChangesAsync();
+
+        // Sinh cặp access + refresh token mới
+        return await GenerateResponseAsync(storedToken.User);
+    }
+
+    /// <summary>
+    /// Revoke refresh token khi user logout
+    /// </summary>
+    public async Task<bool> RevokeTokenAsync(string refreshToken)
+    {
+        var storedToken = await _context.RefreshTokens
+            .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+
+        if (storedToken == null || storedToken.IsRevoked)
+            return false;
+
+        storedToken.IsRevoked = true;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Sinh Access Token (15 phút) + Refresh Token (7 ngày) và lưu RT vào DB
+    /// </summary>
+    private async Task<AuthResponseDto> GenerateResponseAsync(User user)
+    {
+        // --- Access Token (ngắn hạn) ---
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -109,14 +153,26 @@ public class AuthService : IAuthService
             Encoding.UTF8.GetBytes(_config["Jwt:Secret"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var token = new JwtSecurityToken(
+        var accessToken = new JwtSecurityToken(
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
+            expires: DateTime.UtcNow.AddMinutes(15), // Giảm từ 24h → 15 phút
             signingCredentials: creds);
+
+        // --- Refresh Token (dài hạn, lưu DB) ---
+        var refreshToken = new RefreshToken
+        {
+            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            UserId = user.Id
+        };
+
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync();
 
         return new AuthResponseDto
         {
-            Token = new JwtSecurityTokenHandler().WriteToken(token),
+            Token = new JwtSecurityTokenHandler().WriteToken(accessToken),
+            RefreshToken = refreshToken.Token,
             Username = user.Username,
             Role = user.Role.ToString()
         };
