@@ -50,23 +50,23 @@ public class AppDbContext : DbContext
 
         mb.Entity<RefreshToken>()
             .HasIndex(rt => rt.Token).IsUnique();
-            
+
         // Notification config
         mb.Entity<Notification>()
             .HasOne(n => n.User)
             .WithMany()
             .HasForeignKey(n => n.UserId)
             .OnDelete(DeleteBehavior.Cascade);
-            
+
         mb.Entity<Notification>()
             .HasOne(n => n.TaskItem)
             .WithMany()
             .HasForeignKey(n => n.TaskItemId)
             .OnDelete(DeleteBehavior.SetNull);
-            
+
         mb.Entity<Notification>()
             .HasIndex(n => n.UserId);
-            
+
         mb.Entity<Notification>()
             .HasIndex(n => n.IsRead);
 

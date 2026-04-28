@@ -52,7 +52,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && 
+                if (!string.IsNullOrEmpty(accessToken) &&
                     (path.StartsWithSegments("/hub/notifications") || path.StartsWithSegments("/hub/chat")))
                 {
                     context.Token = accessToken;
@@ -113,7 +113,7 @@ using (var scope = app.Services.CreateScope())
     catch { /* __EFMigrationsHistory chưa tồn tại → bỏ qua, Migrate() sẽ tạo */ }
 
     // Apply tất cả migration pending
-    db.Database.Migrate();
+    db.Database.EnsureCreated();
 }
 
 app.Run();
